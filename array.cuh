@@ -44,7 +44,7 @@ struct DeviceArray {
 		return data[index];
 	}
 
-	__host__ __device__ T& operator[](int index) const {
+	__host__ __device__ const T& operator[](int index) const {
 		return data[index];
 	}
 
@@ -71,20 +71,6 @@ public:
 
 	__host__ ~HostArray() {
 		array.destroy();
-	}
-
-	HostArray(const HostArray&) = delete;
-	HostArray& operator=(const HostArray&) = delete;
-
-	__host__ HostArray(HostArray&& other) noexcept
-		: array(std::move(other.array)) {}
-
-	__host__ HostArray& operator=(HostArray&& other) noexcept {
-		if (this != &other) {
-			array.destroy();
-			array = std::move(other.array);
-		}
-		return *this;
 	}
 
 	// Implicit conversion to DynamicArray<T> for lending to kernels.
