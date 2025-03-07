@@ -3,7 +3,7 @@
 #include "array.cuh"
 
 
-__global__ void kernel(AgnosticArray<int> v) {
+__global__ void kernel(DeviceArray<int> v) {
 	v.push(threadIdx.x);
 }
 
@@ -18,10 +18,10 @@ int main() {
 	if (err != cudaSuccess) {
 		std::cerr << cudaGetErrorString(err) << std::endl;
 	}
-	std::cout << v[0] << std::endl;
-	std::cout << v[1] << std::endl;
-	std::cout << v[2] << std::endl;
-	std::cout << v[3] << std::endl;
+
+	for (int i = 0; i < v.getCount(); i++) {
+		std::cout << v[i] << std::endl;
+	}
 
 	return 0;
 }

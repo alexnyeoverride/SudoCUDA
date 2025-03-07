@@ -4,23 +4,17 @@
 
 
 template <typename T>
-struct AgnosticArray {
+struct DeviceArray {
 	int capacity;
 	int* count;
 	T* data;
 
-	__host__ __device__ static AgnosticArray create(const int capacity) {
+	__host__ __device__ static DeviceArray create(const int capacity) {
 		int* count;
 		T* data;
 
-#ifndef __CUDA_ARCH__
 		cudaMallocManaged(&data, sizeof(T) * capacity);
 		cudaMallocManaged(&count, sizeof(int));
-#else
-		// TODO: ??? verify that this works on the device.
-		data = new T[capacity];
-		count = new int;
-#endif
 
 		*count = 0;
 		return { capacity, count, data };
@@ -38,7 +32,10 @@ struct AgnosticArray {
 		const auto index = *count;
 		*count += 1;
 #endif
-		if (index < capacity) {
+
+		if (index >= capacity) {
+			*count = capacity;
+		} else {
 			data[index] = value;
 		}
 	}
@@ -63,13 +60,13 @@ struct AgnosticArray {
 
 template <typename T>
 class HostArray {
-	AgnosticArray<T> array;
+	DeviceArray<T> array;
 
 public:
 	__host__ explicit HostArray(int capacity)
-		: array(AgnosticArray<T>::create(capacity)) {}
+		: array(DeviceArray<T>::create(capacity)) {}
 
-	__host__ explicit HostArray(AgnosticArray<T> array)
+	__host__ explicit HostArray(DeviceArray<T> array)
 		: array(array) {}
 
 	__host__ ~HostArray() {
@@ -91,7 +88,7 @@ public:
 	}
 
 	// Implicit conversion to DynamicArray<T> for lending to kernels.
-	__host__ operator AgnosticArray<T>() const noexcept { // NOLINT(*-explicit-constructor)
+	__host__ operator DeviceArray<T>() const noexcept { // NOLINT(*-explicit-constructor)
 		return array;
 	}
 
@@ -99,19 +96,4 @@ public:
 	__host__ const T& operator[](int index) const { return array[index]; }
 	__host__ int getCount() const { return array.getCount(); }
 	__host__ int getCapacity() const { return array.getCapacity(); }
-};
-
-
-template <typename T>
-class DeviceArray {
-	AgnosticArray<T> array;
-
-public:
-	// TODO: constructor which defers to AgnosticArray<T> `create` method.
-	// TODO: can a class used only on the device have a constructor?
-	__device__ explicit DeviceArray(int capacity) {
-		array = AgnosticArray<T>::create(capacity);
-	}
-
-	// TODO: conversion to AgnosticArray<T> for exporting from kernels.
 };
