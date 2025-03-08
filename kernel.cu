@@ -15,7 +15,7 @@ struct Work {
 
 
 // hard
-/*
+///*
 constexpr Board puzzle = {
 	8, _, _, _, _, _, _, _, _,
 	_, _, 3, 6, _, _, _, _, _,
@@ -27,7 +27,8 @@ constexpr Board puzzle = {
 	_, _, 8, 5, _, _, _, 1, _,
 	_, 9, _, _, _, _, 4, _, _
 };
-*/
+//*/
+/*
 // easy
 constexpr Board puzzle = {
     2, 5, 6, 8, 3, 7, 1, 4, 9,
@@ -40,6 +41,7 @@ constexpr Board puzzle = {
 	6, 3, 5, 9, 7, 1, 4, 8, 2,
 	9, 2, 4, 5, 8, 3, 7, 6, _
 };
+*/
 
 __device__ int64_t xxhash(int64_t x) {
 	x *= 2654435761;
@@ -173,12 +175,6 @@ __global__ void solve(
 	auto numCycles = 0;
 
 	while (true) {
-		numCycles++;
-		if (numCycles > 10000000) {
-			printf("Solution iteration limit reached.  Exiting.\n");
-            break;
-        }
-
 		if (complete(knownValues)) {
 			break;
 		}
@@ -186,6 +182,15 @@ __global__ void solve(
 		auto [error, work] = workStack.pop();
 		if (error == Error::Underflow) {
 			continue; // Wait for work.
+		}
+
+		numCycles++;
+		if (numCycles > 100000) {
+			printf("Solution iteration limit reached.  Exiting.\n");
+			if (threadIdx.x == 0) {
+				*knownValues = work.board;
+			}
+			break;
 		}
 
 		if (!applyConstraints(&work)) {
@@ -208,7 +213,6 @@ __global__ void solve(
 		}
 		*/
 
-		atomicAdd(numWorkingThreads, 1);
 		makeGuesses(&work.board, workStack, numWorkingThreads);
 	}
 }
