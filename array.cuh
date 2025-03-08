@@ -1,6 +1,18 @@
 #pragma once
 
+#include <cassert>
 #include <cuda_runtime.h>
+
+enum class Error : int {
+    None,
+    Overflow,
+	Underflow,
+};
+template <typename T>
+struct Result {
+    Error error;
+	T value;
+};
 
 
 template <typename T>
@@ -9,12 +21,16 @@ struct DeviceArray {
 	int* count;
 	T* data;
 
-	__host__ __device__ static DeviceArray create(const int capacity) {
+	__host__ static DeviceArray create(const int capacity) {
 		int* count;
 		T* data;
 
-		cudaMallocManaged(&data, sizeof(T) * capacity);
+		const auto maybeError = cudaMallocManaged(&data, sizeof(T) * capacity);
 		cudaMallocManaged(&count, sizeof(int));
+
+		if (maybeError != cudaSuccess) {
+            std::cerr << "Error: " << cudaGetErrorString(maybeError) << std::endl;
+        }
 
 		*count = 0;
 		return { capacity, count, data };
@@ -25,16 +41,18 @@ struct DeviceArray {
 		cudaFree(count);
 	}
 
-	__host__ __device__ void push(T value) {
+	// TODO: return an error type instead of using assert.
+	__host__ __device__ Result<T> push(T value) {
 #ifdef __CUDA_ARCH__
 		const auto index = atomicAdd(count, 1);
 #else
 		const auto index = *count;
-		*count += 1;
+		*count += 1; // TODO: atomic addition on the CPU.
 #endif
 
 		if (index >= capacity) {
 			*count = capacity;
+			return { Error::Overflow };
 		} else {
 			data[index] = value;
 		}
@@ -44,13 +62,30 @@ struct DeviceArray {
 		*count = 0;
 	}
 
+	__host__ __device__ Result<T> pop() {
+		Result<T> R;
+#ifdef __CUDA_ARCH__
+		const auto index = atomicSub(count, 1);
+#else
+		const auto index = *count;
+		*count -= 1; // TODO: atomic subtraction on the CPU.
+#endif
+		if (index <= 0) {
+            *count = 0;
+			return {Error::Underflow};
+        } else {
+        	return {
+        		Error::None,
+        		data[index - 1]
+        	};
+        }
+	}
+
 	__host__ __device__ T& operator[](int index) {
-		// TODO: multidimensional indexing.
 		return data[index];
 	}
 
 	__host__ __device__ const T& operator[](int index) const {
-		// TODO: multidimensional indexing.
 		return data[index];
 	}
 
@@ -88,4 +123,6 @@ public:
 	__host__ const T& operator[](int index) const { return array[index]; }
 	__host__ int getCount() const { return array.getCount(); }
 	__host__ int getCapacity() const { return array.getCapacity(); }
+
+	__host__ void push(T value) { array.push(value); }
 };
