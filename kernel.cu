@@ -14,8 +14,10 @@ struct Work {
 };
 
 
+// hard
+/*
 constexpr Board puzzle = {
-	8, _, _, _, _, _, _, _, _, // TODO: extra 8 at end to test that the solver can detect invalid boards.
+	8, _, _, _, _, _, _, _, _,
 	_, _, 3, 6, _, _, _, _, _,
 	_, 7, _, _, 9, _, 2, _, _,
 	_, 5, _, _, _, 7, _, _, _,
@@ -25,7 +27,19 @@ constexpr Board puzzle = {
 	_, _, 8, 5, _, _, _, 1, _,
 	_, 9, _, _, _, _, 4, _, _
 };
-
+*/
+// easy
+constexpr Board puzzle = {
+    2, 5, 6, 8, 3, 7, 1, 4, 9,
+	7, 1, 9, 4, _, _, 8, 3, 6,
+	8, 4, 3, 6, 1, 9, 2, 5, 7,
+	4, 6, 7, 1, 5, 8, 9, 2, 3,
+	3, 9, _, 7, 6, 4, 5, 1, 8,
+	5, 8, 1, 3, 9, 2, 6, 7, 4,
+	1, 7, 8, 2, 4, 6, 3, 9, 5,
+	6, 3, 5, 9, 7, 1, 4, 8, 2,
+	9, 2, 4, 5, 8, 3, 7, 6, _
+};
 
 __device__ int64_t xxhash(int64_t x) {
 	x *= 2654435761;
@@ -47,7 +61,7 @@ __device__ int64_t hashBoard(const Board& board) {
 	return runningHash;
 }
 
-__global__ void makeGuesses(
+__device__ void makeGuesses(
 	Board* workingBoard,
 	DeviceArray<Work> workStack,
 	int* numWorkingThreads
@@ -76,7 +90,6 @@ __global__ void makeGuesses(
 					} while (result.error == Error::Overflow);
 
 					atomicSub(numWorkingThreads, 1);
-					//free(workingBoard); // TODO: why is this an error?  It's malloc'd right before the call.
 				}
 			}
 		}
@@ -161,7 +174,7 @@ __global__ void solve(
 
 	while (true) {
 		numCycles++;
-		if (numCycles > 100) {
+		if (numCycles > 10000000) {
 			printf("Solution iteration limit reached.  Exiting.\n");
             break;
         }
@@ -172,14 +185,10 @@ __global__ void solve(
 
 		auto [error, work] = workStack.pop();
 		if (error == Error::Underflow) {
-			if (*numWorkingThreads == 0) {
-				break; // If workStealingStack is empty and no threads are working, the puzzle is unsolvable.
-			}
 			continue; // Wait for work.
 		}
 
 		if (!applyConstraints(&work)) {
-			printBoard(&work.board);
 			continue; // This guess is invalid.  Look for new work.
 		}
 
@@ -188,23 +197,19 @@ __global__ void solve(
 			break;
 		}
 
-		// TODO: check if this optimization is worth it.
-		/*
+
+		/* TODO
 		const auto boardHash = hashBoard(work.board);
 		if ((guessPathEquivalenceClassBloomFilter & boardHash) == boardHash) {
-			continue; // We've made this same set of guesses in another order before.  Skip to optimize.
+			printf("Duplicate guess path found.  Skipping.\n");
+			continue; // We've made this same set of guesses in another order before.
 		} else {
-			atomicAnd(&guessPathEquivalenceClassBloomFilter, boardHash);
+			atomicOr(&guessPathEquivalenceClassBloomFilter, boardHash);
 		}
 		*/
 
-		printf("Making guesses\n"); // TODO
-
-		// makeGuesses is a separate thread because I'm trying to fix the problem of deadlocking when the workStack is full.
-		const auto workBoard = static_cast<Board*>(malloc(sizeof(Board)));
-		*workBoard = work.board;
 		atomicAdd(numWorkingThreads, 1);
-		makeGuesses<<<1, 1>>>(workBoard, workStack, numWorkingThreads);
+		makeGuesses(&work.board, workStack, numWorkingThreads);
 	}
 }
 
@@ -239,7 +244,7 @@ int main() {
 
 	printf("Initial work stack size: %d\n", workStack.getCount());
 
-	solve<<<1, 1>>>(knownValues, workStack, numWorkingThreads);
+	solve<<<1, 32>>>(knownValues, workStack, numWorkingThreads);
 	cudaDeviceSynchronize();
 
 	if (const cudaError_t err = cudaGetLastError(); err != cudaSuccess) {
