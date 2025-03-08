@@ -40,11 +40,17 @@ struct DeviceArray {
 		}
 	}
 
+	__host__ __device__ void empty() {
+		*count = 0;
+	}
+
 	__host__ __device__ T& operator[](int index) {
+		// TODO: multidimensional indexing.
 		return data[index];
 	}
 
 	__host__ __device__ const T& operator[](int index) const {
+		// TODO: multidimensional indexing.
 		return data[index];
 	}
 

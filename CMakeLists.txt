@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.18)
 project(SudoCUDA LANGUAGES CXX CUDA)
 
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 add_executable(SudoCUDA kernel.cu)
