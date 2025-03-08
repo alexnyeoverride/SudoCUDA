@@ -15,7 +15,6 @@ struct Work {
 };
 
 
-// TODO: push all guesses to the stack.  (at each push, check for an error, and inner-loop-retry)
 __device__ __host__ void makeGuesses(
 	Board* workingBoard,
 	DeviceArray<Work> workStealingStack
@@ -27,26 +26,17 @@ __device__ __host__ void makeGuesses(
 					Board newBoard = *workingBoard;
 					newBoard[row][col] = guess;
 
-					/*
-					const auto result = workStealingStack.push({
-						newBoard,
-						row,
-						col
-					});
 					// TODO: threads could deadlock here.  Maybe split threads into solvers and guessers / poppers and pushers.
-					if (result.error == Error::Overflow) {
-						// TODO: inner-loop-retry.
-					}
-					*/
 
-					Result<Work> result;
+					// TODO: same as above but with retry
+					Result<Work> result = {Error::Overflow};
 					do {
 						result = workStealingStack.push({
 							newBoard,
 							row,
 							col
 						});
-					} while (result.error == Error::Underflow);
+					} while (result.error == Error::Overflow);
 				}
 			}
 		}

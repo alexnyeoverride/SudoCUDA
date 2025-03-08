@@ -47,7 +47,7 @@ struct DeviceArray {
 		const auto index = atomicAdd(count, 1);
 #else
 		const auto index = *count;
-		*count += 1; // TODO: atomic addition on the CPU.
+		*count += 1; // TODO: atomic addition on the CPU.  include <atomic> and call std::atomic_fetch_add.
 #endif
 
 		if (index >= capacity) {
@@ -55,6 +55,7 @@ struct DeviceArray {
 			return { Error::Overflow };
 		} else {
 			data[index] = value;
+			return { Error::None };
 		}
 	}
 
@@ -68,7 +69,7 @@ struct DeviceArray {
 		const auto index = atomicSub(count, 1);
 #else
 		const auto index = *count;
-		*count -= 1; // TODO: atomic subtraction on the CPU.
+		*count -= 1; // TODO: atomic subtraction on the CPU.  include <atomic> and call std::atomic_fetch_sub.
 #endif
 		if (index <= 0) {
             *count = 0;
