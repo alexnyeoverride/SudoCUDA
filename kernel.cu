@@ -27,8 +27,8 @@ __device__ __host__ void makeGuesses(
 					newBoard[row][col] = guess;
 
 					// TODO: threads could deadlock here.  Maybe split threads into solvers and guessers / poppers and pushers.
+					//		Make makeGuesses __global__ and from solve dispatch it as its own thread.
 
-					// TODO: same as above but with retry
 					Result<Work> result = {Error::Overflow};
 					do {
 						result = workStealingStack.push({
@@ -85,8 +85,6 @@ __device__ bool applyConstraints(
 	return true;
 }
 
-// CUDA parallel work-stealing Sudoku solver.
-
 __device__ bool complete(const Board* board) {
 	for (int8_t i = 0; i < 9; i++) {
 		for (int8_t j = 0; j < 9; j++) {
@@ -98,15 +96,11 @@ __device__ bool complete(const Board* board) {
 	return true;
 }
 
-// TODO: optimization.  After determining what guesses to make, push n-1 of them to the stack,
-//		and just work on one without pushing then immediately popping it.
 __global__ void solve(
 	Board* knownValues,
-	DeviceArray<Work> workStealingStack
+	DeviceArray<Work> workStealingStack,
+	const int* numWorkingThreads
 ) {
-	// TODO: a way to break the loop for unsolvable puzzles.  If all threads are waiting for work, and the stack is empty.
-	//		Maybe add a numWaitingThreads argument.
-
 	while (true) {
 		if (complete(knownValues)) {
 			break;
@@ -114,7 +108,10 @@ __global__ void solve(
 
 		auto [error, work] = workStealingStack.pop();
 		if (error == Error::Underflow) {
-			continue; // Wait for work. // TODO: unless puzzle is unsolvable.
+			if (*numWorkingThreads == 0) {
+				break; // If workStealingStack is empty and no threads are working, the puzzle is unsolvable.
+			}
+			continue; // Wait for work.
 		}
 
 		if (!applyConstraints(&work)) {
@@ -127,11 +124,9 @@ __global__ void solve(
 
 		// TODO: work path permutation optimization would go here.
 		//		If the work guess path is a permutation of a prior guess path, skip it.
-		//		Advanced optimization, need a hash table of ordered position-value pair set keys.
+		//		Advanced optimization, need a hash set of sorted position-value pair set keys.
 
 		makeGuesses(knownValues, workStealingStack);
-
-		printf("%d\n", workStealingStack.getCount()); // TODO: debugging
 	}
 }
 
@@ -142,6 +137,10 @@ int main() {
 
 	// TODO: what capacity makes sense?  How do I measure the impact of threads' waiting to insert work?
 	auto workStealingStack = HostArray<Work>(1024*1024*100);
+
+	int* numWorkingThreads;
+	cudaMallocManaged(&numWorkingThreads, sizeof(int));
+	*numWorkingThreads = 0;
 
 	constexpr Board puzzle = {
 		8, _, _, _, _, _, _, _, _,
@@ -159,7 +158,7 @@ int main() {
 	// Initialize workStealingStack to the first layer of guesses for all empty cells.
 	makeGuesses(knownValues, workStealingStack);
 
-	solve<<<1, 32>>>(knownValues, workStealingStack);
+	solve<<<1, 32>>>(knownValues, workStealingStack, numWorkingThreads);
 	if (const cudaError_t err = cudaGetLastError(); err != cudaSuccess) {
 		std::cerr << cudaGetErrorString(err) << std::endl;
 	}
