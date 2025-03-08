@@ -59,10 +59,6 @@ struct DeviceArray {
 		}
 	}
 
-	__host__ __device__ void empty() {
-		*count = 0;
-	}
-
 	__host__ __device__ Result<T> pop() {
 		Result<T> R;
 #ifdef __CUDA_ARCH__
@@ -80,14 +76,6 @@ struct DeviceArray {
         		data[index - 1]
         	};
         }
-	}
-
-	__host__ __device__ T& operator[](int index) {
-		return data[index];
-	}
-
-	__host__ __device__ const T& operator[](int index) const {
-		return data[index];
 	}
 
 	__host__ __device__ int getCount() const {
@@ -120,10 +108,7 @@ public:
 		return array;
 	}
 
-	__host__ T& operator[](int index) { return array[index]; }
-	__host__ const T& operator[](int index) const { return array[index]; }
 	__host__ int getCount() const { return array.getCount(); }
 	__host__ int getCapacity() const { return array.getCapacity(); }
-
 	__host__ void push(T value) { array.push(value); }
 };
